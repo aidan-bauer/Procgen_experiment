@@ -8,6 +8,7 @@ public class GridGenerator : MonoBehaviour {
     [Tooltip("Values can only be 2^n+1 (5, 17, 33, etc.).")]
     public int dimension = 33;
     public int steps = 25;
+    public int stepRange = 5;
     public float scale = 1f;
 
     public bool useRandomSeed = true;
@@ -34,9 +35,8 @@ public class GridGenerator : MonoBehaviour {
 
         if (useRandomSeed)
             seed = System.DateTime.Now.ToLongTimeString();
-        
 
-        RandomWalk rw = new RandomWalk(map, seed);
+        RandomWalk rw = new RandomWalk(map, seed, stepRange);
 
         for (int i = 0; i < steps; i++)
         {
@@ -46,7 +46,15 @@ public class GridGenerator : MonoBehaviour {
         map = rw.ReturnSteps();
         path = rw.ReturnPath();
 
-        DiamondSquare ds = new DiamondSquare(map, 5);
+        for (int x = 0; x < dimension; x++)
+        {
+            for (int y = 0; y < dimension; y++)
+            {
+                //map[x, y].Height = heightMapValues[x, y];
+            }
+        }
+
+        /*DiamondSquare ds = new DiamondSquare(map, 5);
         ds.GenerateHeightMap(dimension-1);
         float[,] heightMapValues = ds.ReturnHeightMap();
 
@@ -58,10 +66,11 @@ public class GridGenerator : MonoBehaviour {
             }
         }
 
+        //assign heightmap values to the path
         for (int i = 0; i < path.Length; i++)
         {
             path[i].Height = heightMapValues[(int)path[i].ReturnPosition().x, (int)path[i].ReturnPosition().z];
-        }
+        }*/
     }
 
     private void Reset()
@@ -78,7 +87,7 @@ public class GridGenerator : MonoBehaviour {
 
     //display a point as if the it's centered around zero
     Vector3 CenterAroundZero(Vector3 point) {
-        return new Vector3(point.x - (dimension / 2)/* + 0.5f*/, point.y, point.z - (dimension / 2)/* + 0.5f*/) * scale;
+        return new Vector3(point.x - (dimension / 2), point.y, point.z - (dimension / 2)) * scale;
     }
 
     private void OnDrawGizmos()
@@ -93,7 +102,7 @@ public class GridGenerator : MonoBehaviour {
                 {
                     Gizmos.color = (map[x, y].weight > 0) ? Color.white : Color.black;
                     
-                    Gizmos.DrawCube(CenterAroundZero(map[x, y].ReturnPosition()), Vector3.one * (map[x,y].weight+1 / 2f));
+                    Gizmos.DrawCube(CenterAroundZero(map[x, y].ReturnPosition()), Vector3.one * (map[x,y].weight));
                 }
             }
 
@@ -112,6 +121,7 @@ public class GridGenerator : MonoBehaviour {
         int nodeX, nodeY;
         float height;
         public int weight;
+        List<Node> connectedNodes;
 
         public float Height
         {
@@ -127,27 +137,45 @@ public class GridGenerator : MonoBehaviour {
             nodeY = y;
             weight = 0;
             height = 0;
+            connectedNodes = new List<Node>();
         }
 
         public Vector3 ReturnPosition()
         {
             return new Vector3(nodeX, height, nodeY);
         }
+
+        /*Select Current Node
+        Find Previous Node
+        Add it to the connected nodes list*/
+        public void AddNode(Node nodeToAdd) {
+            connectedNodes.Add(nodeToAdd);
+        }
+
+        public bool isConnectedNode(Node comparisson) {
+            return connectedNodes.Contains(comparisson);
+        }
+
+        public void DebugDrawConnections() {
+            for (int i = 0; i < connectedNodes.Count; i++) {
+
+            }
+        }
     }
 
     //drunkards walk
     public class RandomWalk
     {
-        //int _startX, _startY;
         int currentX, currentY;
         int x, y;
         int lastDirection;
         int stepDistance;
+        int stepRange;
         Node[,] walkedSteps;
         List<Node> walkerPath;
         System.Random psuedoRand;
 
-        public RandomWalk(Node[,] mapCopy, string seed)
+        public RandomWalk(Node[,] mapCopy, string seed, int _stepRange)
         {
             psuedoRand = new System.Random(seed.GetHashCode());
 
@@ -155,11 +183,12 @@ public class GridGenerator : MonoBehaviour {
             currentY = UnityEngine.Random.Range(5, mapCopy.GetLength(1) - 6);
             walkedSteps = mapCopy;
             walkerPath = new List<Node>();
+            stepRange = _stepRange;
 
             walkedSteps[currentX, currentY].weight++;
 
             lastDirection = psuedoRand.Next(0, 4);
-            stepDistance = UnityEngine.Random.Range(1, 5);
+            stepDistance = UnityEngine.Random.Range(1, stepRange);
         }
 
         public void Step()
@@ -167,8 +196,9 @@ public class GridGenerator : MonoBehaviour {
             //pick a direction at random but not the direction we just came from
             //move one unit in that direction
             //repeat
+            Node previousNode = walkedSteps[currentX, currentY];
             int stepDirection = psuedoRand.Next(0, 4);
-            stepDistance = UnityEngine.Random.Range(1, 5);
+            stepDistance = UnityEngine.Random.Range(1, stepRange);
 
             while (stepDirection == lastDirection)
             {
@@ -207,9 +237,12 @@ public class GridGenerator : MonoBehaviour {
 
             currentX += x;
             currentY += y;
+            //if (walkedSteps[currentX,currentY].weight == 0)
+                walkerPath.Add(walkedSteps[currentX, currentY]);
 
             walkedSteps[currentX, currentY].weight++;
-            walkerPath.Add(walkedSteps[currentX, currentY]);
+            if (!previousNode.isConnectedNode(walkedSteps[currentX, currentY]))
+                walkedSteps[currentX, currentY].AddNode(previousNode);
 
             lastDirection = stepDirection;
 
@@ -296,7 +329,6 @@ public class GridGenerator : MonoBehaviour {
                 {
                     for (int y = 0; y < heightMap.GetLength(1); y += halfStep)
                     {
-                        //int left = (x - halfStep) > 0 ? x : 0;
                         SquareStep(x, y, halfStep, UnityEngine.Random.Range(-randomHeight/4, randomHeight/4));
                     }
                 }
@@ -309,7 +341,6 @@ public class GridGenerator : MonoBehaviour {
         {
             //assume x and y are the top left corner of the square
             //find average value
-            //print(x + ", " + y + ", " + (x + stepSize) + ", " + (y + stepSize));
             float averageValue = (heightMap[x, y] + heightMap[x + stepSize, y] + heightMap[x, y + stepSize] + heightMap[x + stepSize, y + stepSize]) / 4;
             //set midpoint to average of nodesToAverage + randomized amount
             heightMap[x + stepSize / 2, y + stepSize / 2] = averageValue + randomOffset;
@@ -318,12 +349,12 @@ public class GridGenerator : MonoBehaviour {
         void SquareStep(int x, int y, int stepSize, float randomOffset)
         {
             //assume x and y are the center of the diamond
-            //find average value (left, top, right, bottom) while making sure its inside the array bounds
+            //find average value while making sure its inside the array bounds
             float left = x - stepSize < 0 ? 0 : heightMap[x - stepSize / 2, 0];
             float right = x + stepSize >= heightMap.GetLength(0) ? 0 : heightMap[x + stepSize / 2, 0];
             float up = y - stepSize < 0 ? 0 : heightMap[0, y - stepSize / 2];
             float down = y + stepSize >= heightMap.GetLength(0) ? 0 : heightMap[0, y + stepSize / 2];
-            float averageValue = (left + right + up + down) / 4;
+            float averageValue = (left + right + up + down) / 4f;
             //set midpoint to average of nodesToAverage + randomized amount
             heightMap[x, y] = averageValue + randomOffset;
         }
