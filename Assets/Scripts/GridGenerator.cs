@@ -15,7 +15,6 @@ public class GridGenerator : MonoBehaviour {
     public string seed;
 
     Node[,] map;
-    Node[] path;
 
     // Use this for initialization
     void Awake () {
@@ -44,33 +43,47 @@ public class GridGenerator : MonoBehaviour {
         }
 
         map = rw.ReturnSteps();
-        path = rw.ReturnPath();
 
-        for (int x = 0; x < dimension; x++)
-        {
-            for (int y = 0; y < dimension; y++)
-            {
-                //map[x, y].Height = heightMapValues[x, y];
-            }
-        }
+        //DiamondSquare ds = new DiamondSquare(map, 5);
+        //ds.GenerateHeightMap(dimension-1);
+        //float[,] heightMapValues = ds.ReturnHeightMap();
 
-        /*DiamondSquare ds = new DiamondSquare(map, 5);
-        ds.GenerateHeightMap(dimension-1);
-        float[,] heightMapValues = ds.ReturnHeightMap();
-
-        for (int x = 0; x < dimension; x++)
+       /* for (int x = 0; x < dimension; x++)
         {
             for (int y = 0; y < dimension; y++)
             {
                 map[x, y].Height = heightMapValues[x, y];
             }
+        }*/
+
+        for (int x = 0; x < dimension; x++)
+        {
+            for (int y = 0; y < dimension; y++)
+            {
+                map[x, y].DebugDrawConnections();
+            }
         }
 
-        //assign heightmap values to the path
-        for (int i = 0; i < path.Length; i++)
+        //REPLACE: Does not work
+        /*List<Node> oneConnectionList = new List<Node>();
+        for (int x = 0; x < dimension; x++)
         {
-            path[i].Height = heightMapValues[(int)path[i].ReturnPosition().x, (int)path[i].ReturnPosition().z];
-        }*/
+            for (int y = 0; y < dimension; y++)
+            {
+                if (map[x,y].ConnectedNodes.Count == 1)
+                {
+                    print("found one");
+                    oneConnectionList.Add(map[x, y]);
+                }
+            }
+        }
+
+        Node[] oneConnection = oneConnectionList.ToArray();
+        oneConnection[UnityEngine.Random.Range(0, oneConnection.Length)].SetNodeType= 1;
+        oneConnection[UnityEngine.Random.Range(0, oneConnection.Length)].SetNodeType = 2;*/
+
+        map[UnityEngine.Random.Range(0, dimension), UnityEngine.Random.Range(0, dimension)].SetNodeType = 1;
+        map[UnityEngine.Random.Range(0, dimension), UnityEngine.Random.Range(0, dimension)].SetNodeType = 2;
     }
 
     private void Reset()
@@ -79,7 +92,7 @@ public class GridGenerator : MonoBehaviour {
         {
             for (int y = 0; y < dimension; y++)
             {
-                map[x, y] = new Node(x, y);     //completely reset the node
+                map[x, y] = new Node(x, y, dimension, scale);     //completely reset the node
                 map[x, y].weight = 0;
             }
         }
@@ -100,17 +113,28 @@ public class GridGenerator : MonoBehaviour {
             {
                 for (int y = 0; y < dimension; y++)
                 {
-                    Gizmos.color = (map[x, y].weight > 0) ? Color.white : Color.black;
-                    
+                    int nodeType = map[x, y].GetNodeType;
+                    switch(nodeType)
+                    {
+                        case 0:
+                            Gizmos.color = Color.white;
+                            break;
+                        case 1:
+                            Gizmos.color = Color.green;
+                            break;
+                        case 2:
+                            Gizmos.color = Color.blue;
+                            break;
+                        default:
+                            break;
+                    }
+
+                    /*if ((map[x, y].weight == 0))
+                        Gizmos.color = Color.black;*/
+                    //Gizmos.color = (map[x, y].weight > 0) ? Color.white : Color.black;
+
                     Gizmos.DrawCube(CenterAroundZero(map[x, y].ReturnPosition()), Vector3.one * (map[x,y].weight));
                 }
-            }
-
-            Gizmos.color = Color.red;
-
-            for (int i = 0; i < path.Length - 1; i++)
-            {
-                Gizmos.DrawLine(CenterAroundZero(path[i].ReturnPosition()), CenterAroundZero(path[i + 1].ReturnPosition()));
             }
         }
     }
@@ -119,9 +143,36 @@ public class GridGenerator : MonoBehaviour {
     public struct Node
     {
         int nodeX, nodeY;
+        int nodeType;
         float height;
+        float dimensions, scale;    //cause we need them here to debug *sigh*
         public int weight;
+
+        public int SetNodeType
+        {
+            set
+            {
+                nodeType = value;
+            }
+        }
+
+        public int GetNodeType
+        {
+            get
+            {
+                return nodeType;
+            }
+        }
+
         List<Node> connectedNodes;
+
+        public List<Node> ConnectedNodes
+        {
+            get
+            {
+                return connectedNodes;
+            }
+        }
 
         public float Height
         {
@@ -131,10 +182,13 @@ public class GridGenerator : MonoBehaviour {
             }
         }
 
-        public Node(int x, int y)
+        public Node(int x, int y, float _dimensions, float _scale)
         {
             nodeX = x;
             nodeY = y;
+            nodeType = 0;
+            dimensions = _dimensions;
+            scale = _scale;
             weight = 0;
             height = 0;
             connectedNodes = new List<Node>();
@@ -158,8 +212,14 @@ public class GridGenerator : MonoBehaviour {
 
         public void DebugDrawConnections() {
             for (int i = 0; i < connectedNodes.Count; i++) {
-
+                Debug.DrawLine(CenterAroundZero(ReturnPosition()), CenterAroundZero(connectedNodes[i].ReturnPosition()), Color.red, 200f);
             }
+        }
+
+        //display a point as if the it's centered around zero
+        Vector3 CenterAroundZero(Vector3 point)
+        {
+            return new Vector3(point.x - (dimensions / 2) + 0.5f, point.y, point.z - (dimensions / 2) + 0.5f) * scale;
         }
     }
 
